@@ -24,6 +24,7 @@ type Config struct {
 	Cookies       string // JSON string of cookies to set
 	ChromeBinPath string // Custom Chrome/Chromium executable path
 	Proxy         string // Proxy server URL (e.g. "http://host:port", "socks5://host:port")
+	UserDataDir   string // Chrome user data directory (profile path)
 
 	Trace bool // Whether to enable tracing (not implemented yet)
 }
@@ -89,6 +90,19 @@ func WithProxy(proxy string) Option {
 	}
 }
 
+// WithUserDataDir sets the Chrome user data directory (profile path).
+// This allows reusing an existing Chrome profile, including login sessions.
+// Common paths:
+//   - macOS: "~/Library/Application Support/Google/Chrome"
+//   - Linux: "~/.config/google-chrome"
+//   - Windows: "%LOCALAPPDATA%\\Google\\Chrome\\User Data"
+func WithUserDataDir(dir string) Option {
+	return func(c *Config) {
+		c.UserDataDir = dir
+	}
+}
+
+// WithTrace enables tracing for debugging.
 func WithTrace() Option {
 	return func(c *Config) {
 		c.Trace = true
@@ -118,6 +132,15 @@ func New(options ...Option) *Browser {
 	// Set proxy server if provided
 	if cfg.Proxy != "" {
 		l = l.Proxy(cfg.Proxy)
+	}
+
+	// Set user data dir; Chrome requires non-headless mode for user data dir
+	if cfg.UserDataDir != "" {
+		l = l.Set("user-data-dir", cfg.UserDataDir)
+		if cfg.Headless {
+			l = l.Headless(false)
+			logrus.Infof("user-data-dir is set, forcing headless=false")
+		}
 	}
 
 	url := l.MustLaunch()
